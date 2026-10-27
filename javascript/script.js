@@ -360,3 +360,136 @@ function htmlDecode(input) {
   var doc = new DOMParser().parseFromString(input, "text/html");
   return doc.documentElement.textContent;
 }
+
+// Hide cards without removing Gradio's managed checkbox nodes or style definitions.
+(function () {
+    const storageKey = 'fooocusplus.hiddenStyles.v1';
+    let hidden = new Set();
+    let storageError = '';
+    let rendering = false;
+    let lastPanelSignature = null;
+    let lastGrid = null;
+    const known = new Map();
+    try {
+        const saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
+        if (!Array.isArray(saved) || saved.some(name => typeof name !== 'string')) {
+            throw new Error('Invalid hidden styles list');
+        }
+        hidden = new Set(saved);
+    } catch (error) {
+        storageError = 'Could not read saved hidden styles. Changes apply for this page only.';
+        console.warn('Hidden styles:', error);
+    }
+
+    function persist() {
+        try {
+            localStorage.setItem(storageKey, JSON.stringify([...hidden].sort()));
+            storageError = '';
+        } catch (error) {
+            storageError = 'Could not save hidden styles. Changes apply for this page only.';
+            console.warn('Hidden styles:', error);
+        }
+    }
+
+    function refreshHiddenStyles() {
+        if (rendering) return;
+        rendering = true;
+        try {
+            const app = gradioApp();
+            app.querySelectorAll('.style_selections label').forEach(label => {
+                const input = label.querySelector('input[type="checkbox"]');
+                const span = label.querySelector('span');
+                if (!input || !span) return;
+                let name = input.value && input.value !== 'on' ? input.value : span.textContent.trim();
+                if ((!input.value || input.value === 'on') && typeof localization !== 'undefined') {
+                    name = Object.keys(localization).find(key => localization[key] === name) || name;
+                }
+                const img = label.querySelector('img.style-thumbnail');
+                known.set(name, {text: span.textContent.trim(), src: img ? img.getAttribute('src') : ''});
+                let button = label.querySelector('.style-hide-button');
+                if (!button) {
+                    button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'style-hide-button';
+                    button.textContent = '×';
+                    // Prevent a button click from toggling its enclosing checkbox label.
+                    button.addEventListener('click', event => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        const currentName = button.dataset.styleName;
+                        if (input.checked) input.click();
+                        hidden.add(currentName);
+                        persist();
+                        refreshHiddenStyles();
+                    });
+                    label.appendChild(button);
+                }
+                button.dataset.styleName = name;
+                const title = 'Hide ' + span.textContent.trim();
+                if (button.title !== title) {
+                    button.title = title;
+                    button.setAttribute('aria-label', title);
+                }
+                const isHidden = hidden.has(name);
+                if (label.classList.contains('style-card-hidden') !== isHidden) {
+                    label.classList.toggle('style-card-hidden', isHidden);
+                }
+                // Presets/model changes may select a hidden style: keep it inactive.
+                if (isHidden && input.checked) input.click();
+            });
+            const grid = app.querySelector('#hidden-styles-grid');
+            const status = app.querySelector('#hidden-styles-status');
+            if (!grid || !status) return;
+            const names = [...hidden].sort((a, b) => a.localeCompare(b));
+            const signature = JSON.stringify([names.map(name => [name, known.get(name)]), storageError]);
+            if (grid === lastGrid && signature === lastPanelSignature) return;
+            lastGrid = grid;
+            lastPanelSignature = signature;
+            status.textContent = storageError || (names.length ? names.length + ' hidden style(s)' : 'No hidden styles. Use × on a style card to hide it.');
+            const cards = document.createDocumentFragment();
+            names.forEach(name => {
+                const info = known.get(name) || {text: name, src: ''};
+                const card = document.createElement('div');
+                card.className = 'hidden-style-card';
+                if (info.src) {
+                    const img = document.createElement('img');
+                    img.src = info.src;
+                    img.alt = '';
+                    img.loading = 'lazy';
+                    img.addEventListener('error', () => { img.style.visibility = 'hidden'; });
+                    card.appendChild(img);
+                }
+                const text = document.createElement('span');
+                text.textContent = info.text;
+                card.appendChild(text);
+                const restore = document.createElement('button');
+                restore.type = 'button';
+                restore.textContent = 'Restore';
+                restore.setAttribute('aria-label', 'Restore ' + info.text);
+                restore.addEventListener('click', () => {
+                    hidden.delete(name);
+                    persist();
+                    refreshHiddenStyles();
+                    const next = grid.querySelector('button');
+                    if (next) next.focus();
+                });
+                card.appendChild(restore);
+                cards.appendChild(card);
+            });
+            grid.replaceChildren(cards);
+        } finally {
+            rendering = false;
+        }
+    }
+    onUiLoaded(refreshHiddenStyles);
+    onAfterUiUpdate(refreshHiddenStyles);
+    window.addEventListener('storage', event => {
+        if (event.key !== storageKey && event.key !== null) return;
+        try {
+            const value = JSON.parse(event.newValue || '[]');
+            if (!Array.isArray(value) || value.some(name => typeof name !== 'string')) return;
+            hidden = new Set(value);
+            refreshHiddenStyles();
+        } catch (error) { console.warn('Hidden styles:', error); }
+    });
+})();
