@@ -1831,6 +1831,16 @@ with common.GRADIO_ROOT:
                     outputs=style_selections)
 
 
+            with gr.Tab(label='Hidden Styles'):
+                gr.HTML(
+                    '<div id="hidden-styles-panel">'
+                    '<p>Hidden styles are saved in this browser. '
+                    'Restore a style to return it to the Styles tab.</p>'
+                    '<p id="hidden-styles-status" role="status"></p>'
+                    '<div id="hidden-styles-grid"></div>'
+                    '</div>')
+
+
             with gr.Tab(label='Models', elem_id="scrollable-box"):
                 with gr.Group():
                     base_model = gr.Dropdown(
