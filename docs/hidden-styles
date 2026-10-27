@@ -1,0 +1,31 @@
+# Hide and restore styles
+
+This patch adds an × button to each style card and a Hidden Styles tab next to Styles. Hiding a selected style also unticks it. Restore returns a card to Styles without selecting it. Style definitions and thumbnail files are never deleted.
+
+## Install
+
+Close FooocusPlus. Back up these three existing files, then replace them with the matching files in this ZIP:
+
+- `webui.py`
+- `javascript/script.js`
+- `css/style.css`
+
+Keep the `javascript` and `css` subfolders; do not place all three files in the application root. Start with `entry_without_update.py` or your existing no-update launcher while testing. Restart FooocusPlus and refresh the browser.
+
+The existing 120×120 thumbnails, names underneath, and red outlines are preserved.
+
+## Usage and persistence
+
+Use × on a card to hide it. Open Hidden Styles and click Restore to bring it back. Restore leaves the style unticked.
+
+Choices are saved in browser local storage, separately for each browser/profile and site address (including the port). Clearing site data removes this list. Use the same browser and address after restarting. An error message in Hidden Styles reports if storage is unavailable.
+
+Hidden styles remain unticked even when a preset/model change attempts to select them. Restore a style before using it in a preset. This is a browser UI feature; it does not filter direct API requests or other browser sessions. Another open tab using the same browser/address synchronizes saved changes.
+
+## Validation
+
+JavaScript syntax and Python compilation checked. DOM tests cover hide, unselect, restore, reload persistence, preset-driven selection, Gradio label reuse, unchanged refresh, and restoration of names no longer installed. Full FooocusPlus/Gradio integration and visual testing still need to be performed in the installed application.
+
+## Undo
+
+Restore the three backed-up files and restart FooocusPlus. The saved browser list is inert without the patch.
